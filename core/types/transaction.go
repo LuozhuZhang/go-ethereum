@@ -217,6 +217,9 @@ func (tx *Transaction) Size() common.StorageSize {
 // AsMessage requires a signer to derive the sender.
 //
 // XXX Rename message to something less arbitrary?
+
+// 在此对Transaction -> AsMessage做一个数据结构的转换
+// Solidity中的message貌似就是用这个AsMessage传输的
 func (tx *Transaction) AsMessage(s Signer) (Message, error) {
 	msg := Message{
 		nonce:      tx.data.AccountNonce,
