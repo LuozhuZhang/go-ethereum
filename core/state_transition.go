@@ -61,12 +61,14 @@ type StateTransition struct {
 }
 
 // Message represents a message sent to a contract.
+// 这里的message貌似是调用contract的transaction
 type Message interface {
 	From() common.Address
 	//FromFrontier() (common.Address, error)
 	To() *common.Address
 
 	GasPrice() *big.Int
+	// 这里是什么意思？
 	Gas() uint64
 	Value() *big.Int
 
@@ -109,14 +111,17 @@ func IntrinsicGas(data []byte, contractCreation, homestead bool) (uint64, error)
 }
 
 // NewStateTransition initialises and returns a new state transition object.
+// 传入evm对象的指针，这里返回一个 new state transition object（就是st * StateTransition）
 func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool) *StateTransition {
 	return &StateTransition{
 		gp:       gp,
+		// evm对象的指针
 		evm:      evm,
 		msg:      msg,
 		gasPrice: msg.GasPrice(),
 		value:    msg.Value(),
 		data:     msg.Data(),
+		// 底层数据库：状态树
 		state:    evm.StateDB,
 	}
 }
@@ -129,6 +134,7 @@ func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool) *StateTransition 
 // indicates a core error meaning that the message would always fail for that particular
 // state and would never be accepted within a block.
 func ApplyMessage(evm *vm.EVM, msg Message, gp *GasPool) ([]byte, uint64, bool, error) {
+	// 处理每一笔交易：调用了这个NewStateTransition
 	return NewStateTransition(evm, msg, gp).TransitionDb()
 }
 
@@ -149,8 +155,14 @@ func (st *StateTransition) useGas(amount uint64) error {
 	return nil
 }
 
+// preCheck中检查gas的函数
 func (st *StateTransition) buyGas() error {
+	// 1.msg.Gas()其实就是gas limit，用 msg.Gas() * gasPrice，即gas的数量 * gasPrice
+	// 所以这里的 msg.Gas() 就是把 stateTransaction 中的gaspool-gaslimit拿过来
 	mgval := new(big.Int).Mul(new(big.Int).SetUint64(st.msg.Gas()), st.gasPrice)
+	// 2.判断当前账户的余额是否足够支付gas
+	// 所以GetBalance这个就是查询账户余额的函数？
+	// st.state是在某一个state或某一个block的意思吗？evm存储之前的archive吗，还是遍历每一个block的时候都看当前block的这个数据 所以不需要存储历史余额
 	if st.state.GetBalance(st.msg.From()).Cmp(mgval) < 0 {
 		return errInsufficientBalanceForGas
 	}
@@ -166,6 +178,7 @@ func (st *StateTransition) buyGas() error {
 
 func (st *StateTransition) preCheck() error {
 	// Make sure this transaction's nonce is correct.
+	// 检查这笔交易的随机数是否正确
 	if st.msg.CheckNonce() {
 		nonce := st.state.GetNonce(st.msg.From())
 		if nonce < st.msg.Nonce() {
@@ -174,13 +187,19 @@ func (st *StateTransition) preCheck() error {
 			return ErrNonceTooLow
 		}
 	}
+	// 返回buy gas，去看一看这是什么东西
 	return st.buyGas()
 }
 
 // TransitionDb will transition the state by applying the current message and
 // returning the result including the used gas. It returns an error if failed.
 // An error indicates a consensus issue.
+
+// evm中比较关键的一个函数，主要作用就是计算了所有gas的使用
+// 也包含了调用虚拟机
 func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bool, err error) {
+	// 检查nonce是否符合要求
+	// 检查账户是否足够支付gas fee
 	if err = st.preCheck(); err != nil {
 		return
 	}
