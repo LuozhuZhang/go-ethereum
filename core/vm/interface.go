@@ -25,35 +25,44 @@ import (
 
 // StateDB is an EVM database for full state querying.
 type StateDB interface {
+	// 1. 账户方法
 	CreateAccount(common.Address)
 
+	// 2. 余额方法
 	SubBalance(common.Address, *big.Int)
 	AddBalance(common.Address, *big.Int)
 	GetBalance(common.Address) *big.Int
 
+	// 3. Nonce数据
 	GetNonce(common.Address) uint64
 	SetNonce(common.Address, uint64)
 
+	// 4. code相关，即智能合约的那些东西
+	// 看一下SetCode在哪里被调用，基本上就可以知道智能合约的代码存在哪里了（貌似在evm.go中）
 	GetCodeHash(common.Address) common.Hash
 	GetCode(common.Address) []byte
 	SetCode(common.Address, []byte)
 	GetCodeSize(common.Address) int
 
+	// 5. 退回多余的gas
 	AddRefund(uint64)
 	SubRefund(uint64)
+	// Get可以拿到退回的gas
 	GetRefund() uint64
 
+	// 6.不太清楚这里的committedState和getState什么意思
 	GetCommittedState(common.Address, common.Hash) common.Hash
 	GetState(common.Address, common.Hash) common.Hash
 	SetState(common.Address, common.Hash, common.Hash)
 
+	// 7. 貌似也是合约执行的指令，用于废弃合约
 	Suicide(common.Address) bool
 	HasSuicided(common.Address) bool
 
 	// Exist reports whether the given account exists in state.
 	// Notably this should also return true for suicided accounts.
 	Exist(common.Address) bool
-	// Empty returns whether the given account is empty. Empty
+	// Empty returns whetsher the given account is empty. Empty
 	// is defined according to EIP161 (balance = nonce = code = 0).
 	Empty(common.Address) bool
 
